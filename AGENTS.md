@@ -64,6 +64,8 @@ Do not rewrite from scratch yet, and do not deeply couple the new short-drama lo
 
 The first milestone is not full video generation. The first milestone is a reviewable "script package": input a novel excerpt and generate structured JSON containing episode hook, characters, scenes, shots, dialogue/narration, visual prompts, and continuity notes. Only after the script package is stable should ComfyUI video generation and final composition be connected.
 
+The first implementation uses source anchors before adaptation. Local Gemma/llama.cpp can produce valid JSON while drifting into unrelated short-drama tropes, so `NovelDramaPipeline` defaults to rule-based source fact extraction for names, locations, props, and time markers. The generated package is checked against those markers and retried once at lower temperature if it drifts. Optional LLM source-fact extraction exists behind `use_llm_source_facts`, but it is off by default until a stronger model is used.
+
 Human-readable plan: `docs/zh/development/novel-drama-plan.md`.
 
 ## Current Git Setup Notes

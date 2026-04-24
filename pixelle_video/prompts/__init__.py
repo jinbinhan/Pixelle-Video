@@ -28,6 +28,7 @@ from pixelle_video.prompts.image_generation import (
     DEFAULT_IMAGE_STYLE
 )
 from pixelle_video.prompts.style_conversion import build_style_conversion_prompt
+from pixelle_video.prompts.novel_drama import build_novel_drama_prompt, build_novel_source_facts_prompt
 
 
 __all__ = [
@@ -39,6 +40,8 @@ __all__ = [
     # Image builders
     "build_image_prompt_prompt",
     "build_style_conversion_prompt",
+    "build_novel_source_facts_prompt",
+    "build_novel_drama_prompt",
     
     # Image style presets
     "IMAGE_STYLE_PRESETS",
