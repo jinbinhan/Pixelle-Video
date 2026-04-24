@@ -167,4 +167,4 @@ Invoke-WebRequest -UseBasicParsing http://192.168.50.112:8188/object_info
 
 注意：Pixelle-Video 的 Web UI 只会把文件名包含 `video_` 的工作流识别为视频工作流，所以 LTX 文件在项目中改名为 `video_ltx2.3_t2v_i2v_single_stage_distilled_full.json`。该工作流已转换成 ComfyUI API JSON 格式，并验证 ComfyKit 可以识别 `prompt`、`width`、`height` 参数。完整视频生成还没有在本机跑完验证，如果后续执行失败，优先检查 ComfyUI 服务器上对应模型文件和自定义节点是否齐全。
 
-单独的“图生视频”页面位于 `web/pipelines/i2v.py`，它不是读取标准视频模板里的 `comfyui.video.default_workflow`。这个页面现在会扫描 `i2v_*.json` 和本地 `selfhost/video_*.json`，并优先选择本地工作流。执行本地工作流时，页面会在当前任务目录生成一个临时适配版 workflow：把上传的首帧图片映射到 `LoadImage`，并把 LTX 的 `bypass_i2v` 设为 `false`；原始提交的 workflow 文件不被修改。
+单独的“图生视频”页面位于 `web/pipelines/i2v.py`，它不是读取标准视频模板里的 `comfyui.video.default_workflow`。这个页面现在会扫描 `i2v_*.json` 和本地 `selfhost/video_*.json`，并优先选择本地工作流。执行本地工作流时，页面会在当前任务目录生成一个临时适配版 workflow：把上传的首帧图片映射到 `LoadImage`，把 LTX 的 `bypass_i2v` 设为 `false`，并给每个 `SaveVideo` 节点写入唯一的 `filename_prefix`，避免 ComfyUI 缓存命中时本次 history 不返回视频输出；原始提交的 workflow 文件不被修改。

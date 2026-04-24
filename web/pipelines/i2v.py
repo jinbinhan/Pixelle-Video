@@ -2,6 +2,7 @@ import os
 import time
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlencode
 
 import streamlit as st
 from loguru import logger
@@ -236,7 +237,7 @@ class ImageToVideoPipelineUI(PipelineUI):
                         if workflow_config.get("source") == "runninghub" and "workflow_id" in workflow_config:
                             workflow_input = workflow_config["workflow_id"]
                         else:
-                            for node in workflow_config.values():
+                            for node_id, node in workflow_config.items():
                                 if not isinstance(node, dict):
                                     continue
                                 class_type = node.get("class_type")
@@ -249,6 +250,9 @@ class ImageToVideoPipelineUI(PipelineUI):
                                 if meta.get("title") == "bypass_i2v" and "value" in inputs:
                                     inputs["value"] = False
 
+                                if class_type == "SaveVideo" and "filename_prefix" in inputs:
+                                    inputs["filename_prefix"] = f"pixelle_i2v_{task_id}_{node_id}"
+
                             adapted_workflow_path = Path(task_dir) / f"i2v_{workflow_path.name}"
                             with open(adapted_workflow_path, 'w', encoding='utf-8') as f:
                                 json.dump(workflow_config, f, ensure_ascii=False, indent=2)
@@ -257,19 +261,53 @@ class ImageToVideoPipelineUI(PipelineUI):
 
                         video_result = await kit.execute(workflow_input, workflow_params)
 
+                        if video_result.status != "completed":
+                            detail = video_result.msg or "Unknown ComfyUI execution error"
+                            raise Exception(f"ComfyUI workflow failed: {detail}")
+
                         generated_video_url = None
                         if hasattr(video_result, 'videos') and video_result.videos:
                             generated_video_url = video_result.videos[0]
                         elif hasattr(video_result, 'outputs') and video_result.outputs:
                             for node_id, node_output in video_result.outputs.items():
-                                if isinstance(node_output, dict) and 'videos' in node_output:
-                                    videos = node_output['videos']
-                                    if videos and len(videos) > 0:
-                                        generated_video_url = videos[0]
+                                if not isinstance(node_output, dict):
+                                    continue
+                                for media_key in ("videos", "gifs", "images"):
+                                    media_items = node_output.get(media_key)
+                                    if not media_items:
+                                        continue
+                                    for media_item in media_items:
+                                        if isinstance(media_item, str):
+                                            if media_item.startswith(("http://", "https://")):
+                                                generated_video_url = media_item
+                                                break
+                                            continue
+                                        if not isinstance(media_item, dict):
+                                            continue
+                                        filename = media_item.get("filename", "")
+                                        if not filename.lower().endswith((".mp4", ".mov", ".avi", ".webm", ".gif")):
+                                            continue
+                                        comfyui_url = config_manager.get_comfyui_config().get("comfyui_url", "").rstrip("/")
+                                        query = {
+                                            "filename": filename,
+                                            "type": media_item.get("type", "output"),
+                                        }
+                                        subfolder = media_item.get("subfolder")
+                                        if subfolder:
+                                            query["subfolder"] = subfolder
+                                        generated_video_url = f"{comfyui_url}/view?{urlencode(query)}"
                                         break
+                                    if generated_video_url:
+                                        break
+                                if generated_video_url:
+                                    break
 
                         if not generated_video_url:
-                            raise Exception("The workflow did not return a video. Please check the workflow configuration.")
+                            output_keys = list(video_result.outputs.keys()) if video_result.outputs else []
+                            raise Exception(
+                                "The workflow completed but did not return a video URL. "
+                                f"Prompt ID: {video_result.prompt_id}; output nodes: {output_keys}"
+                            )
 
                         final_video_path = os.path.join(task_dir, "final.mp4")
                         timeout = httpx.Timeout(300.0)
