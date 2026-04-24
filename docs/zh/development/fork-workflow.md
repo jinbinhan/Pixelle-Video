@@ -76,3 +76,36 @@ git cherry-pick <commit_sha>
 后续 AI 接手任务时，优先读取根目录的 `AGENTS.md`。那里记录了本仓库的 remote、分支策略、同步方式和二开约定。
 
 以后如果任务中产生了长期有效的项目决策、工作流约定、仓库配置或环境说明，需要继续更新 `AGENTS.md`；如果这些内容也适合人阅读，再同步补充到 `docs/` 目录。
+
+## 本地启动环境
+
+本项目使用根目录下的 `.venv` 作为本地 Python 虚拟环境。不要直接用系统 Python 启动，否则可能出现类似 `ModuleNotFoundError: No module named 'loguru'` 的依赖错误。
+
+首次安装或修复依赖：
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -e .
+.\.venv\Scripts\python.exe -m playwright install chromium
+```
+
+启动 Web UI：
+
+```powershell
+.\.venv\Scripts\python.exe -m streamlit run web/app.py --server.port 8502 --server.headless true
+```
+
+当前本机 `8501` 端口可能已经被其他 Streamlit 应用占用，所以这个项目默认用 `8502` 查看：
+
+```text
+http://localhost:8502
+```
+
+运行前可以检查关键依赖：
+
+```powershell
+.\.venv\Scripts\python.exe -c "import loguru, streamlit, playwright; print('imports ok')"
+ffmpeg -version
+```
+
+FFmpeg 已在系统 PATH 上可用；Playwright Chromium 已安装到当前用户的 Playwright 缓存目录。

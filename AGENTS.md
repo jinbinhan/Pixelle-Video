@@ -58,6 +58,35 @@ C:/Users/jinbi/.gitignore_global
 
 This avoids the previous warning about Git being unable to read `C:\Users\jinbi/.config/git/ignore`.
 
+## Local Runtime Setup
+
+Use the project virtual environment at `.venv`.
+
+Initial setup or repair:
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -e .
+.\.venv\Scripts\python.exe -m playwright install chromium
+```
+
+Run the Web UI:
+
+```powershell
+.\.venv\Scripts\python.exe -m streamlit run web/app.py --server.port 8502 --server.headless true
+```
+
+Port `8501` may already be used by another local Streamlit app, so this workspace currently uses `8502`.
+
+Runtime checks:
+
+```powershell
+.\.venv\Scripts\python.exe -c "import loguru, streamlit, playwright; print('imports ok')"
+ffmpeg -version
+```
+
+FFmpeg is installed and available on PATH. Playwright Chromium has been installed under the user Playwright cache.
+
 ## Persistent Notes Rule
 
 When future work creates durable project decisions, workflows, repository conventions, or setup details that later AI assistants should know, update `AGENTS.md` and, when useful for humans, add or update a file under `docs/`.
