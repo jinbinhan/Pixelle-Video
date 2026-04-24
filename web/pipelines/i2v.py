@@ -63,12 +63,16 @@ class ImageToVideoPipelineUI(PipelineUI):
 
             def list_i2v_workflows():
                 result = []
-                for source in ("runninghub", "selfhost"):
+                for source in ("selfhost", "runninghub"):
                     dir_path = os.path.join("workflows", source)
                     if not os.path.isdir(dir_path):
                         continue
                     for fname in os.listdir(dir_path):
-                        if fname.startswith("i2v_") and fname.endswith(".json"):
+                        is_i2v_workflow = fname.startswith("i2v_")
+                        # Self-hosted LTX video workflows can also be used for this page
+                        # after we adapt the uploaded first-frame image at execution time.
+                        is_selfhost_video_workflow = source == "selfhost" and fname.startswith("video_")
+                        if (is_i2v_workflow or is_selfhost_video_workflow) and fname.endswith(".json"):
                             display = f"{fname} - {'Runninghub' if source == 'runninghub' else 'Selfhost'}"
                             result.append({
                                 "key": f"{source}/{fname}",
@@ -126,6 +130,10 @@ class ImageToVideoPipelineUI(PipelineUI):
             workflow_options = [wf["display_name"] for wf in i2v_workflows] 
             workflow_keys = [wf["key"] for wf in i2v_workflows]               
             default_workflow_index = 0
+            for idx, key in enumerate(workflow_keys):
+                if key.startswith("selfhost/"):
+                    default_workflow_index = idx
+                    break
 
             workflow_display = st.selectbox(
                 tr("i2v.workflow_select"),
@@ -228,7 +236,24 @@ class ImageToVideoPipelineUI(PipelineUI):
                         if workflow_config.get("source") == "runninghub" and "workflow_id" in workflow_config:
                             workflow_input = workflow_config["workflow_id"]
                         else:
-                            workflow_input = str(workflow_path)
+                            for node in workflow_config.values():
+                                if not isinstance(node, dict):
+                                    continue
+                                class_type = node.get("class_type")
+                                inputs = node.get("inputs", {})
+                                meta = node.setdefault("_meta", {})
+
+                                if class_type == "LoadImage" and "image" in inputs:
+                                    meta["title"] = "$image.image!"
+
+                                if meta.get("title") == "bypass_i2v" and "value" in inputs:
+                                    inputs["value"] = False
+
+                            adapted_workflow_path = Path(task_dir) / f"i2v_{workflow_path.name}"
+                            with open(adapted_workflow_path, 'w', encoding='utf-8') as f:
+                                json.dump(workflow_config, f, ensure_ascii=False, indent=2)
+
+                            workflow_input = str(adapted_workflow_path)
 
                         video_result = await kit.execute(workflow_input, workflow_params)
 

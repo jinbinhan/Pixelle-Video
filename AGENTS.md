@@ -146,6 +146,8 @@ Image generation should use `selfhost/image_flux.json`. Video generation should 
 
 Pixelle-Video only lists video workflows whose filename contains `video_`, so the LTX workflow is committed with a `video_` prefix. The converted workflow has been verified to parse with ComfyKit and exposes `prompt`, `width`, and `height` parameters. A full video generation run has not yet been completed in this workspace because it may be slow; if execution fails, first check that the ComfyUI server has the exact model files and custom nodes referenced by that workflow.
 
+The standalone Image To Video (`web/pipelines/i2v.py`) page is separate from the standard video-template media selector. It scans `i2v_*.json` and self-hosted `video_*.json` workflows, preferring self-hosted workflows by default. For local workflows, the page writes a task-local adapted workflow that maps the uploaded first-frame image to `LoadImage` and sets the LTX `bypass_i2v` boolean to `false`, leaving the committed source workflow unchanged.
+
 ## Persistent Notes Rule
 
 When future work creates durable project decisions, workflows, repository conventions, or setup details that later AI assistants should know, update `AGENTS.md` and, when useful for humans, add or update a file under `docs/`.
