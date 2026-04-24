@@ -109,3 +109,22 @@ ffmpeg -version
 ```
 
 FFmpeg 已在系统 PATH 上可用；Playwright Chromium 已安装到当前用户的 Playwright 缓存目录。
+
+## 本地大语言模型配置
+
+本地 `config.yaml` 已被 Git 忽略，用来保存私有运行配置。当前 LLM 使用一台 OpenAI 兼容的 llama.cpp 服务：
+
+```yaml
+llm:
+  api_key: "EMPTY"
+  base_url: "http://192.168.50.112:8012/v1"
+  model: "gemma-4-31b-abliterated-Q8_0.gguf"
+```
+
+可以用下面命令确认服务可访问：
+
+```powershell
+Invoke-WebRequest -UseBasicParsing http://192.168.50.112:8012/v1/models
+```
+
+项目的 `LLMService` 已验证可以调用该接口。需要注意：这个模型在短输出、低 `max_tokens` 时可能把内容放在 `reasoning_content`，导致标准 `message.content` 为空。用于 Pixelle-Video 时，提示词最好明确要求“只返回 JSON / 只返回最终答案”，并给足 `max_tokens`。

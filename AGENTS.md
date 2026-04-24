@@ -87,6 +87,31 @@ ffmpeg -version
 
 FFmpeg is installed and available on PATH. Playwright Chromium has been installed under the user Playwright cache.
 
+## Local LLM Setup
+
+The local `config.yaml` is ignored by Git and currently configures an OpenAI-compatible llama.cpp server:
+
+```yaml
+llm:
+  api_key: "EMPTY"
+  base_url: "http://192.168.50.112:8012/v1"
+  model: "gemma-4-31b-abliterated-Q8_0.gguf"
+```
+
+The server is reachable from this machine:
+
+```powershell
+Invoke-WebRequest -UseBasicParsing http://192.168.50.112:8012/v1/models
+```
+
+Pixelle-Video can call this LLM through `LLMService`. For short prompts with low `max_tokens`, this model may return text in `reasoning_content` while `message.content` is empty. For Pixelle-Video JSON-style prompts, use explicit "return only JSON/final answer" wording and enough `max_tokens`.
+
+Verified project-level call:
+
+```powershell
+.\.venv\Scripts\python.exe -c "from pixelle_video.config import config_manager; print(config_manager.config.llm.base_url); print(config_manager.config.validate_required())"
+```
+
 ## Persistent Notes Rule
 
 When future work creates durable project decisions, workflows, repository conventions, or setup details that later AI assistants should know, update `AGENTS.md` and, when useful for humans, add or update a file under `docs/`.
