@@ -158,6 +158,7 @@ nav:
   - Development:
     - Architecture: development/architecture.md
     - Contributing: development/contributing.md
+    - Fork Workflow: development/fork-workflow.md
   - FAQ: faq.md
   - Troubleshooting: troubleshooting.md
 
