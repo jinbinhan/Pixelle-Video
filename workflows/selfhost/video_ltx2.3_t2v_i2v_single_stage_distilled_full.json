@@ -322,10 +322,12 @@
     }
   },
   "4967": {
-    "inputs": {},
-    "class_type": "ClownSampler_Beta",
+    "inputs": {
+      "sampler_name": "euler_ancestral_cfg_pp"
+    },
+    "class_type": "KSamplerSelect",
     "_meta": {
-      "title": "ClownSampler_Beta"
+      "title": "KSamplerSelect"
     }
   },
   "4963": {

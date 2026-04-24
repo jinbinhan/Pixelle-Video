@@ -148,6 +148,8 @@ Pixelle-Video only lists video workflows whose filename contains `video_`, so th
 
 The standalone Image To Video (`web/pipelines/i2v.py`) page is separate from the standard video-template media selector. It scans `i2v_*.json` and self-hosted `video_*.json` workflows, preferring self-hosted workflows by default. For local workflows, the page writes a task-local adapted workflow that maps the uploaded first-frame image to `LoadImage`, sets the LTX `bypass_i2v` boolean to `false`, and gives each `SaveVideo` node a unique `filename_prefix` so ComfyUI cache hits still return a current video output. The committed source workflow is left unchanged.
 
+The downloaded LTX example originally used `ClownSampler_Beta` at node `4967`. The local ComfyUI server does not provide that custom node, so the committed workflow replaces node `4967` with the built-in `KSamplerSelect` using `euler_ancestral_cfg_pp`. After this replacement, all workflow node `class_type` values are present in the server `/object_info`.
+
 ## Persistent Notes Rule
 
 When future work creates durable project decisions, workflows, repository conventions, or setup details that later AI assistants should know, update `AGENTS.md` and, when useful for humans, add or update a file under `docs/`.

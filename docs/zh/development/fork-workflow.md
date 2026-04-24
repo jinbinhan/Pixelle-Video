@@ -168,3 +168,5 @@ Invoke-WebRequest -UseBasicParsing http://192.168.50.112:8188/object_info
 注意：Pixelle-Video 的 Web UI 只会把文件名包含 `video_` 的工作流识别为视频工作流，所以 LTX 文件在项目中改名为 `video_ltx2.3_t2v_i2v_single_stage_distilled_full.json`。该工作流已转换成 ComfyUI API JSON 格式，并验证 ComfyKit 可以识别 `prompt`、`width`、`height` 参数。完整视频生成还没有在本机跑完验证，如果后续执行失败，优先检查 ComfyUI 服务器上对应模型文件和自定义节点是否齐全。
 
 单独的“图生视频”页面位于 `web/pipelines/i2v.py`，它不是读取标准视频模板里的 `comfyui.video.default_workflow`。这个页面现在会扫描 `i2v_*.json` 和本地 `selfhost/video_*.json`，并优先选择本地工作流。执行本地工作流时，页面会在当前任务目录生成一个临时适配版 workflow：把上传的首帧图片映射到 `LoadImage`，把 LTX 的 `bypass_i2v` 设为 `false`，并给每个 `SaveVideo` 节点写入唯一的 `filename_prefix`，避免 ComfyUI 缓存命中时本次 history 不返回视频输出；原始提交的 workflow 文件不被修改。
+
+下载的 LTX 示例工作流原本在 `4967` 节点使用 `ClownSampler_Beta`。当前本地 ComfyUI 服务器没有这个自定义节点，所以项目里的工作流已把 `4967` 替换为内置 `KSamplerSelect`，采样器使用 `euler_ancestral_cfg_pp`。替换后已用服务器 `/object_info` 校验，工作流里的所有 `class_type` 都能在当前 ComfyUI 环境中找到。
