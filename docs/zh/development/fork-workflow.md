@@ -128,3 +128,41 @@ Invoke-WebRequest -UseBasicParsing http://192.168.50.112:8012/v1/models
 ```
 
 项目的 `LLMService` 已验证可以调用该接口。需要注意：这个模型在短输出、低 `max_tokens` 时可能把内容放在 `reasoning_content`，导致标准 `message.content` 为空。用于 Pixelle-Video 时，提示词最好明确要求“只返回 JSON / 只返回最终答案”，并给足 `max_tokens`。
+
+## 本地 ComfyUI 配置
+
+本地 `config.yaml` 同样保存 ComfyUI 连接信息，不提交到 Git。当前使用的 ComfyUI 服务是：
+
+```yaml
+comfyui:
+  comfyui_url: "http://192.168.50.112:8188"
+  comfyui_api_key: ""
+  runninghub_api_key: ""
+  runninghub_concurrent_limit: 1
+
+  tts:
+    default_workflow: selfhost/tts_edge.json
+
+  image:
+    default_workflow: selfhost/image_flux.json
+    prompt_prefix: "Minimalist black-and-white matchstick figure style illustration, clean lines, simple sketch style"
+
+  video:
+    default_workflow: selfhost/video_ltx2.3_t2v_i2v_single_stage_distilled_full.json
+    prompt_prefix: "Minimalist black-and-white matchstick figure style illustration, clean lines, simple sketch style"
+```
+
+可以用下面命令确认 ComfyUI 服务可访问：
+
+```powershell
+Invoke-WebRequest -UseBasicParsing http://192.168.50.112:8188/system_stats
+Invoke-WebRequest -UseBasicParsing http://192.168.50.112:8188/object_info
+```
+
+图片生成使用 `selfhost/image_flux.json`。视频生成使用 `selfhost/video_ltx2.3_t2v_i2v_single_stage_distilled_full.json`。这个 LTX 2.3 工作流来自服务器上的：
+
+```text
+/mnt/data/apps/ComfyUI/custom_nodes/ComfyUI-LTXVideo/example_workflows/2.3/LTX-2.3_T2V_I2V_Single_Stage_Distilled_Full.json
+```
+
+注意：Pixelle-Video 的 Web UI 只会把文件名包含 `video_` 的工作流识别为视频工作流，所以 LTX 文件在项目中改名为 `video_ltx2.3_t2v_i2v_single_stage_distilled_full.json`。该工作流已转换成 ComfyUI API JSON 格式，并验证 ComfyKit 可以识别 `prompt`、`width`、`height` 参数。完整视频生成还没有在本机跑完验证，如果后续执行失败，优先检查 ComfyUI 服务器上对应模型文件和自定义节点是否齐全。

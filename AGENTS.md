@@ -112,6 +112,40 @@ Verified project-level call:
 .\.venv\Scripts\python.exe -c "from pixelle_video.config import config_manager; print(config_manager.config.llm.base_url); print(config_manager.config.validate_required())"
 ```
 
+## Local ComfyUI Setup
+
+The local `config.yaml` also configures a self-hosted ComfyUI server:
+
+```yaml
+comfyui:
+  comfyui_url: "http://192.168.50.112:8188"
+  comfyui_api_key: ""
+  runninghub_api_key: ""
+  runninghub_concurrent_limit: 1
+
+  tts:
+    default_workflow: selfhost/tts_edge.json
+
+  image:
+    default_workflow: selfhost/image_flux.json
+    prompt_prefix: "Minimalist black-and-white matchstick figure style illustration, clean lines, simple sketch style"
+
+  video:
+    default_workflow: selfhost/video_ltx2.3_t2v_i2v_single_stage_distilled_full.json
+    prompt_prefix: "Minimalist black-and-white matchstick figure style illustration, clean lines, simple sketch style"
+```
+
+ComfyUI is reachable from this machine:
+
+```powershell
+Invoke-WebRequest -UseBasicParsing http://192.168.50.112:8188/system_stats
+Invoke-WebRequest -UseBasicParsing http://192.168.50.112:8188/object_info
+```
+
+Image generation should use `selfhost/image_flux.json`. Video generation should use `selfhost/video_ltx2.3_t2v_i2v_single_stage_distilled_full.json`, which was converted from the LTX 2.3 example workflow at `/mnt/data/apps/ComfyUI/custom_nodes/ComfyUI-LTXVideo/example_workflows/2.3/LTX-2.3_T2V_I2V_Single_Stage_Distilled_Full.json`.
+
+Pixelle-Video only lists video workflows whose filename contains `video_`, so the LTX workflow is committed with a `video_` prefix. The converted workflow has been verified to parse with ComfyKit and exposes `prompt`, `width`, and `height` parameters. A full video generation run has not yet been completed in this workspace because it may be slow; if execution fails, first check that the ComfyUI server has the exact model files and custom nodes referenced by that workflow.
+
 ## Persistent Notes Rule
 
 When future work creates durable project decisions, workflows, repository conventions, or setup details that later AI assistants should know, update `AGENTS.md` and, when useful for humans, add or update a file under `docs/`.
