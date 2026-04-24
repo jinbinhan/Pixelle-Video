@@ -170,3 +170,5 @@ Invoke-WebRequest -UseBasicParsing http://192.168.50.112:8188/object_info
 单独的“图生视频”页面位于 `web/pipelines/i2v.py`，它不是读取标准视频模板里的 `comfyui.video.default_workflow`。这个页面现在会扫描 `i2v_*.json` 和本地 `selfhost/video_*.json`，并优先选择本地工作流。执行本地工作流时，页面会在当前任务目录生成一个临时适配版 workflow：把上传的首帧图片映射到 `LoadImage`，把 LTX 的 `bypass_i2v` 设为 `false`，并给每个 `SaveVideo` 节点写入唯一的 `filename_prefix`，避免 ComfyUI 缓存命中时本次 history 不返回视频输出；原始提交的 workflow 文件不被修改。
 
 下载的 LTX 示例工作流原本在 `4967` 节点使用 `ClownSampler_Beta`。当前本地 ComfyUI 服务器没有这个自定义节点，所以项目里的工作流已把 `4967` 替换为内置 `KSamplerSelect`，采样器使用 `euler_ancestral_cfg_pp`。替换后已用服务器 `/object_info` 校验，工作流里的所有 `class_type` 都能在当前 ComfyUI 环境中找到。
+
+该 LTX 工作流也已按当前服务器 `/object_info` 的节点 schema 做兼容：模型文件使用 `ltx-2.3-22b-dev-bf16.safetensors`，文本编码器使用 `gemma_3_12B_it_fp4_mixed.safetensors`，`SaveVideo` 补充 `codec: auto`，新版必填参数如 `strength`、`img_compression`、`cfg`、`skip_blocks` 已补齐，tiled VAE decode 的 tile/overlap 参数改为合法数值，LoRA 节点使用服务器已有的 LTX LoRA 文件名并显式设置 `strength_model`。当前本地 schema 校验结果为 0 个明显 required/combo/type 问题。

@@ -150,6 +150,8 @@ The standalone Image To Video (`web/pipelines/i2v.py`) page is separate from the
 
 The downloaded LTX example originally used `ClownSampler_Beta` at node `4967`. The local ComfyUI server does not provide that custom node, so the committed workflow replaces node `4967` with the built-in `KSamplerSelect` using `euler_ancestral_cfg_pp`. After this replacement, all workflow node `class_type` values are present in the server `/object_info`.
 
+The LTX workflow is adapted to the current server schema from `/object_info`: model checkpoints use `ltx-2.3-22b-dev-bf16.safetensors`, the text encoder uses `gemma_3_12B_it_fp4_mixed.safetensors`, `SaveVideo` nodes include `codec: auto`, newer required inputs such as `strength`, `img_compression`, `cfg`, and `skip_blocks` are filled, tiled VAE decode uses numeric tile/overlap values, and LoRA nodes use the server's available LTX LoRA filenames with explicit `strength_model`. A local schema check against `/object_info` currently reports zero obvious required-input/combo/type issues.
+
 ## Persistent Notes Rule
 
 When future work creates durable project decisions, workflows, repository conventions, or setup details that later AI assistants should know, update `AGENTS.md` and, when useful for humans, add or update a file under `docs/`.

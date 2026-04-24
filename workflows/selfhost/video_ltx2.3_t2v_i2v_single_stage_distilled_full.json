@@ -40,6 +40,7 @@
         "3059",
         0
       ],
+      "strength": 1,
       "bypass": [
         "4977",
         0
@@ -118,7 +119,7 @@
   },
   "4010": {
     "inputs": {
-      "ckpt_name": "ltx-2.3-22b-dev.safetensors"
+      "ckpt_name": "ltx-2.3-22b-dev-bf16.safetensors"
     },
     "class_type": "LTXVAudioVAELoader",
     "_meta": {
@@ -130,7 +131,8 @@
       "image": [
         "4981",
         0
-      ]
+      ],
+      "img_compression": 35
     },
     "class_type": "LTXVPreprocess",
     "_meta": {
@@ -139,7 +141,7 @@
   },
   "3940": {
     "inputs": {
-      "ckpt_name": "ltx-2.3-22b-dev.safetensors"
+      "ckpt_name": "ltx-2.3-22b-dev-bf16.safetensors"
     },
     "class_type": "CheckpointLoaderSimple",
     "_meta": {
@@ -256,8 +258,8 @@
         0
       ],
       "prompt": "",
-      "enhance_prompt": "ltx-2.3-22b-dev.safetensors",
-      "ckpt_name": "ltx-2.3-22b-dev.safetensors"
+      "enhance_prompt": false,
+      "ckpt_name": "ltx-2.3-22b-dev-bf16.safetensors"
     },
     "class_type": "GemmaAPITextEncode",
     "_meta": {
@@ -290,7 +292,8 @@
       "parameters": [
         "4964",
         0
-      ]
+      ],
+      "skip_blocks": ""
     },
     "class_type": "MultimodalGuider",
     "_meta": {
@@ -299,8 +302,8 @@
   },
   "4960": {
     "inputs": {
-      "text_encoder": "comfy_gemma_3_12B_it.safetensors",
-      "ckpt_name": "ltx-2.3-22b-dev.safetensors",
+      "text_encoder": "gemma_3_12B_it_fp4_mixed.safetensors",
+      "ckpt_name": "ltx-2.3-22b-dev-bf16.safetensors",
       "device": "default"
     },
     "class_type": "LTXAVTextEncoderLoader",
@@ -392,7 +395,8 @@
       "negative": [
         "1241",
         1
-      ]
+      ],
+      "cfg": 3
     },
     "class_type": "CFGGuider",
     "_meta": {
@@ -410,7 +414,7 @@
   },
   "2004": {
     "inputs": {
-      "image": "example.png"
+      "image": "girl_ref.jpg"
     },
     "class_type": "LoadImage",
     "_meta": {
@@ -448,7 +452,7 @@
       ],
       "prompt": "pc game, console game, video game, cartoon, childish, ugly",
       "enhance_prompt": false,
-      "ckpt_name": "ltx-2.3-22b-dev.safetensors"
+      "ckpt_name": "ltx-2.3-22b-dev-bf16.safetensors"
     },
     "class_type": "GemmaAPITextEncode",
     "_meta": {
@@ -461,7 +465,8 @@
         "3940",
         0
       ],
-      "lora_name": 0.5
+      "lora_name": "ltx-2.3-22b-distilled-lora-384.safetensors",
+      "strength_model": 0.5
     },
     "class_type": "LoraLoaderModelOnly",
     "_meta": {
@@ -474,7 +479,8 @@
         "3940",
         0
       ],
-      "lora_name": 0.2
+      "lora_name": "ltx-2.3-22b-ic-lora-motion-track-control-ref0.5.safetensors",
+      "strength_model": 0.2
     },
     "class_type": "LoraLoaderModelOnly",
     "_meta": {
@@ -508,9 +514,9 @@
         0
       ],
       "horizontal_tiles": 6,
-      "vertical_tiles": false,
-      "overlap": "auto",
-      "last_frame_fix": "auto"
+      "vertical_tiles": 1,
+      "overlap": 1,
+      "last_frame_fix": false
     },
     "class_type": "LTXVTiledVAEDecode",
     "_meta": {
@@ -544,9 +550,9 @@
         0
       ],
       "horizontal_tiles": 6,
-      "vertical_tiles": false,
-      "overlap": "auto",
-      "last_frame_fix": "auto"
+      "vertical_tiles": 1,
+      "overlap": 1,
+      "last_frame_fix": false
     },
     "class_type": "LTXVTiledVAEDecode",
     "_meta": {
@@ -580,7 +586,8 @@
         0
       ],
       "filename_prefix": "auto",
-      "format": "auto"
+      "format": "auto",
+      "codec": "auto"
     },
     "class_type": "SaveVideo",
     "_meta": {
@@ -612,7 +619,8 @@
         0
       ],
       "filename_prefix": "auto",
-      "format": "auto"
+      "format": "auto",
+      "codec": "auto"
     },
     "class_type": "SaveVideo",
     "_meta": {
