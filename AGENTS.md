@@ -48,6 +48,24 @@ Prefer adding new files over editing upstream files. This keeps future merges ea
 
 If core files must be changed, keep each requirement in a focused commit. Avoid mixing formatting-only changes, refactors, and behavior changes.
 
+## Novel Drama Direction
+
+Current product direction decision: use Pixelle-Video as a temporary, isolated shell for a novel-to-short-drama MVP, then decide later whether to extract the short-drama core into a new standalone project.
+
+Use the metaphor agreed with the user: borrow this project's kitchen to test the recipe; once the recipe works, open our own restaurant.
+
+Do not rewrite from scratch yet, and do not deeply couple the new short-drama logic to the existing generic pipelines. Build a clean isolated feature area first:
+
+- Backend pipeline: `pixelle_video/pipelines/novel_drama.py`
+- Web UI entry: `web/pipelines/novel_drama.py`
+- Domain models: `pixelle_video/models/novel_drama.py`
+- Prompts: `pixelle_video/prompts/novel_drama.py`
+- Optional vertical drama template: `templates/1080x1920/video_drama.html`
+
+The first milestone is not full video generation. The first milestone is a reviewable "script package": input a novel excerpt and generate structured JSON containing episode hook, characters, scenes, shots, dialogue/narration, visual prompts, and continuity notes. Only after the script package is stable should ComfyUI video generation and final composition be connected.
+
+Human-readable plan: `docs/zh/development/novel-drama-plan.md`.
+
 ## Current Git Setup Notes
 
 The local global Git ignore file is set to:

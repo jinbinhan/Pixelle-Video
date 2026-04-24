@@ -77,6 +77,8 @@ git cherry-pick <commit_sha>
 
 以后如果任务中产生了长期有效的项目决策、工作流约定、仓库配置或环境说明，需要继续更新 `AGENTS.md`；如果这些内容也适合人阅读，再同步补充到 `docs/` 目录。
 
+小说自动短剧方向的产品决策和阶段计划记录在 [小说自动短剧方向计划](novel-drama-plan.md)。当前策略是先在本项目里做干净隔离的新功能区验证方向，等短剧流程稳定后再决定是否独立重构。
+
 ## 本地启动环境
 
 本项目使用根目录下的 `.venv` 作为本地 Python 虚拟环境。不要直接用系统 Python 启动，否则可能出现类似 `ModuleNotFoundError: No module named 'loguru'` 的依赖错误。
