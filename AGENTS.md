@@ -66,6 +66,8 @@ The first milestone is not full video generation. The first milestone is a revie
 
 The first implementation uses source anchors before adaptation. Local Gemma/llama.cpp can produce valid JSON while drifting into unrelated short-drama tropes, so `NovelDramaPipeline` defaults to rule-based source fact extraction for names, locations, props, and time markers. The generated package is checked against those markers and retried once at lower temperature if it drifts. Optional LLM source-fact extraction exists behind `use_llm_source_facts`, but it is off by default until a stronger model is used.
 
+The novel drama Web UI includes a JSON review/edit area. Edited packages must validate against `NovelDramaPackage` before they replace the generated package. Reviewed drafts are saved as runtime artifacts under `output/novel_drama_drafts/`, which is ignored by Git.
+
 Human-readable plan: `docs/zh/development/novel-drama-plan.md`.
 
 ## Current Git Setup Notes

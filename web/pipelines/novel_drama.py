@@ -9,11 +9,14 @@ Phase 1 MVP: input a novel excerpt and generate a reviewable script package.
 """
 
 import json
+from datetime import datetime
+from pathlib import Path
 from typing import Any
 
 import streamlit as st
 from loguru import logger
 
+from pixelle_video.models.novel_drama import NovelDramaPackage
 from web.i18n import get_language, tr
 from web.pipelines.base import PipelineUI, register_pipeline_ui
 from web.utils.async_helpers import run_async
@@ -145,7 +148,10 @@ class NovelDramaPipelineUI(PipelineUI):
                             )
                         )
 
-                    st.session_state["novel_drama_package"] = package.model_dump(mode="json")
+                    package_data = package.model_dump(mode="json")
+                    st.session_state["novel_drama_package"] = package_data
+                    st.session_state["novel_drama_package_original"] = package_data
+                    st.session_state["novel_drama_json_editor"] = self._format_package_json(package_data)
                     progress_bar.progress(1.0)
                     status_text.text(tr("novel_drama.complete", fallback="Script package generated."))
                     st.success(tr("novel_drama.success", fallback="Script package generated successfully."))
@@ -166,7 +172,79 @@ class NovelDramaPipelineUI(PipelineUI):
                 )
                 return
 
+            package_data = self._render_review_tools(package_data)
             self._render_package(package_data)
+
+    def _render_review_tools(self, package_data: dict) -> dict:
+        """Render JSON editing, validation, and local draft save controls."""
+
+        if st.session_state.pop("novel_drama_reset_editor_requested", False):
+            original_package = st.session_state.get("novel_drama_package_original", package_data)
+            st.session_state["novel_drama_json_editor"] = self._format_package_json(original_package)
+        elif "novel_drama_json_editor" not in st.session_state:
+            st.session_state["novel_drama_json_editor"] = self._format_package_json(package_data)
+
+        with st.expander(tr("novel_drama.section.review_editor", fallback="Review / Edit JSON"), expanded=False):
+            st.caption(
+                tr(
+                    "novel_drama.review_hint",
+                    fallback="Edit the script package JSON, then apply it. The structure will be validated before use.",
+                )
+            )
+            editor_text = st.text_area(
+                tr("novel_drama.editor.label", fallback="Editable script package JSON"),
+                height=360,
+                key="novel_drama_json_editor",
+            )
+
+            action_col1, action_col2, action_col3 = st.columns(3)
+
+            with action_col1:
+                if st.button(
+                    tr("novel_drama.editor.apply", fallback="Apply edits"),
+                    use_container_width=True,
+                    key="novel_drama_apply_edits",
+                ):
+                    try:
+                        validated_data = self._validate_package_json(editor_text)
+                        st.session_state["novel_drama_package"] = validated_data
+                        st.success(tr("novel_drama.editor.apply_success", fallback="Edits applied."))
+                    except Exception as e:
+                        st.error(tr("novel_drama.editor.apply_failed", fallback="Invalid JSON: {error}", error=str(e)))
+
+            with action_col2:
+                if st.button(
+                    tr("novel_drama.editor.reset", fallback="Reset to generated"),
+                    use_container_width=True,
+                    key="novel_drama_reset_edits",
+                ):
+                    original_package = st.session_state.get("novel_drama_package_original", package_data)
+                    st.session_state["novel_drama_package"] = original_package
+                    st.session_state["novel_drama_reset_editor_requested"] = True
+                    st.info(tr("novel_drama.editor.reset_success", fallback="Restored generated package."))
+                    st.rerun()
+
+            with action_col3:
+                if st.button(
+                    tr("novel_drama.editor.save_draft", fallback="Save draft"),
+                    use_container_width=True,
+                    key="novel_drama_save_draft",
+                ):
+                    try:
+                        validated_data = self._validate_package_json(editor_text)
+                        st.session_state["novel_drama_package"] = validated_data
+                        draft_path = self._save_package_draft(validated_data)
+                        st.success(
+                            tr(
+                                "novel_drama.editor.save_success",
+                                fallback="Draft saved: {path}",
+                                path=str(draft_path),
+                            )
+                        )
+                    except Exception as e:
+                        st.error(tr("novel_drama.editor.save_failed", fallback="Save failed: {error}", error=str(e)))
+
+        return st.session_state.get("novel_drama_package", package_data)
 
     def _render_package(self, package_data: dict):
         """Render generated package in a readable review layout."""
@@ -214,6 +292,37 @@ class NovelDramaPipelineUI(PipelineUI):
                 mime="application/json",
                 use_container_width=True,
             )
+
+    def _format_package_json(self, package_data: dict) -> str:
+        """Format a package for review/editing."""
+
+        return json.dumps(package_data, ensure_ascii=False, indent=2)
+
+    def _validate_package_json(self, json_text: str) -> dict:
+        """Validate edited JSON against the script package model."""
+
+        parsed = json.loads(json_text)
+        package = NovelDramaPackage.model_validate(parsed)
+        return package.model_dump(mode="json")
+
+    def _save_package_draft(self, package_data: dict) -> Path:
+        """Save a reviewed script package draft under the runtime output directory."""
+
+        drafts_dir = Path("output") / "novel_drama_drafts"
+        drafts_dir.mkdir(parents=True, exist_ok=True)
+
+        episode_number = package_data.get("episode_number", 1)
+        title = self._safe_filename(package_data.get("episode_title", "untitled"))
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        draft_path = drafts_dir / f"episode_{episode_number}_{title}_{timestamp}.json"
+        draft_path.write_text(self._format_package_json(package_data), encoding="utf-8")
+        return draft_path
+
+    def _safe_filename(self, value: str) -> str:
+        """Convert a title into a portable filename fragment."""
+
+        safe = "".join(ch if ch.isalnum() or ch in ("-", "_") else "_" for ch in str(value).strip())
+        return safe.strip("_")[:40] or "untitled"
 
 
 register_pipeline_ui(NovelDramaPipelineUI)
