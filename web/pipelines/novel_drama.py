@@ -173,6 +173,7 @@ class NovelDramaPipelineUI(PipelineUI):
                 return
 
             package_data = self._render_review_tools(package_data)
+            self._render_shot_video_tools(pixelle_video, package_data)
             self._render_shot_image_tools(pixelle_video, package_data)
             self._render_package(package_data)
 
@@ -246,6 +247,140 @@ class NovelDramaPipelineUI(PipelineUI):
                         st.error(tr("novel_drama.editor.save_failed", fallback="Save failed: {error}", error=str(e)))
 
         return st.session_state.get("novel_drama_package", package_data)
+
+    def _render_shot_video_tools(self, pixelle_video: Any, package_data: dict):
+        """Render one-shot LTX video generation controls for the reviewed package."""
+
+        shots = package_data.get("shots", [])
+        if not shots:
+            return
+
+        if "novel_drama_shot_videos" not in st.session_state:
+            st.session_state["novel_drama_shot_videos"] = {}
+
+        with st.expander(tr("novel_drama.section.shot_video", fallback="Single Shot Video"), expanded=True):
+            st.caption(
+                tr(
+                    "novel_drama.shot_video.hint",
+                    fallback="Main path: generate one LTX 2.3 text-to-video clip from a reviewed shot prompt.",
+                )
+            )
+
+            shot_options = [shot.get("shot_id", f"shot_{index + 1}") for index, shot in enumerate(shots)]
+            shot_labels = {
+                shot.get("shot_id", f"shot_{index + 1}"): (
+                    f"{shot.get('order', index + 1)}. {shot.get('shot_id', '')} - "
+                    f"{shot.get('shot_type', '')} - {shot.get('dialogue_or_narration', '')[:28]}"
+                )
+                for index, shot in enumerate(shots)
+            }
+            selected_shot_id = st.selectbox(
+                tr("novel_drama.shot_video.select_shot", fallback="Select shot"),
+                shot_options,
+                format_func=lambda shot_id: shot_labels.get(shot_id, shot_id),
+                key="novel_drama_video_selected_shot",
+            )
+            selected_shot = next(shot for shot in shots if shot.get("shot_id") == selected_shot_id)
+
+            workflow_options = self._get_video_workflow_options(pixelle_video)
+            workflow_choice = st.selectbox(
+                tr("novel_drama.shot_video.workflow", fallback="Video workflow"),
+                workflow_options,
+                format_func=lambda value: tr("novel_drama.shot_video.default_workflow", fallback="Configured default") if value is None else value,
+                key="novel_drama_video_workflow",
+            )
+
+            size_col1, size_col2, size_col3 = st.columns(3)
+            with size_col1:
+                width = st.number_input(
+                    tr("novel_drama.shot_video.width", fallback="Width"),
+                    min_value=512,
+                    max_value=1280,
+                    value=960,
+                    step=32,
+                    key="novel_drama_video_width",
+                )
+            with size_col2:
+                height = st.number_input(
+                    tr("novel_drama.shot_video.height", fallback="Height"),
+                    min_value=320,
+                    max_value=1024,
+                    value=544,
+                    step=32,
+                    key="novel_drama_video_height",
+                )
+            with size_col3:
+                duration_seconds = st.slider(
+                    tr("novel_drama.shot_video.duration", fallback="Duration"),
+                    min_value=3.0,
+                    max_value=8.0,
+                    value=min(max(float(selected_shot.get("duration_seconds", 5)), 3.0), 8.0),
+                    step=0.5,
+                    key="novel_drama_video_duration",
+                )
+
+            prompt_override = st.text_area(
+                tr("novel_drama.shot_video.prompt", fallback="Shot video prompt"),
+                value=selected_shot.get("visual_prompt_en", ""),
+                height=120,
+                key=f"novel_drama_video_prompt_{selected_shot_id}",
+            )
+
+            generate_video_clicked = st.button(
+                tr("novel_drama.shot_video.generate", fallback="Generate selected shot video"),
+                type="primary",
+                use_container_width=True,
+                key="novel_drama_generate_shot_video",
+            )
+
+            if generate_video_clicked:
+                progress_bar = st.progress(0)
+                status_text = st.empty()
+
+                def progress_callback(event):
+                    progress_bar.progress(min(max(event.progress, 0.0), 1.0))
+                    status_text.text(tr(event.event_type, fallback=event.event_type))
+
+                try:
+                    with st.spinner(tr("novel_drama.shot_video.generating", fallback="Generating shot video...")):
+                        result = run_async(
+                            pixelle_video.pipelines["novel_drama"].generate_shot_video(
+                                package_data,
+                                selected_shot_id,
+                                progress_callback=progress_callback,
+                                prompt_override=prompt_override,
+                                workflow=workflow_choice,
+                                width=int(width),
+                                height=int(height),
+                                duration_seconds=float(duration_seconds),
+                            )
+                        )
+
+                    shot_videos = st.session_state["novel_drama_shot_videos"]
+                    shot_videos[selected_shot_id] = result.model_dump(mode="json")
+                    progress_bar.progress(1.0)
+                    status_text.text(tr("novel_drama.shot_video.complete", fallback="Shot video generated."))
+                    st.success(tr("novel_drama.shot_video.success", fallback="Shot video generated successfully."))
+
+                except Exception as e:
+                    logger.exception(e)
+                    progress_bar.empty()
+                    status_text.empty()
+                    st.error(tr("status.error", fallback="Error: {error}", error=str(e)))
+
+            shot_video = st.session_state.get("novel_drama_shot_videos", {}).get(selected_shot_id)
+            if shot_video:
+                video_path = shot_video.get("video_path")
+                st.caption(video_path)
+                if video_path and Path(video_path).exists():
+                    st.video(video_path)
+                meta = (
+                    f"{shot_video.get('width')}x{shot_video.get('height')}, "
+                    f"{shot_video.get('frame_count')} frames @ {shot_video.get('fps')}fps"
+                )
+                st.caption(meta)
+                with st.expander(tr("novel_drama.shot_video.used_prompt", fallback="Used prompt"), expanded=False):
+                    st.code(shot_video.get("prompt", ""), language="text")
 
     def _render_shot_image_tools(self, pixelle_video: Any, package_data: dict):
         """Render one-shot image generation controls for the reviewed package."""
@@ -456,6 +591,20 @@ class NovelDramaPipelineUI(PipelineUI):
                     workflows.append(key)
         except Exception as e:
             logger.warning(f"Failed to list image workflows: {e}")
+        return workflows
+
+    def _get_video_workflow_options(self, pixelle_video: Any) -> list[str | None]:
+        """Return video workflows for the single-shot LTX generator."""
+
+        workflows: list[str | None] = [None]
+        try:
+            for workflow in pixelle_video.media.list_workflows():
+                key = workflow.get("key", "")
+                name = workflow.get("name", "")
+                if key and name.startswith("video_"):
+                    workflows.append(key)
+        except Exception as e:
+            logger.warning(f"Failed to list video workflows: {e}")
         return workflows
 
 

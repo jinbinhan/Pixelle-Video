@@ -14,7 +14,7 @@ import re
 import shutil
 from typing import Optional, Callable
 from pathlib import Path
-from urllib.parse import urlparse
+from urllib.parse import urlencode, urlparse
 
 import httpx
 from loguru import logger
@@ -24,6 +24,7 @@ from pixelle_video.models.novel_drama import (
     NovelDramaPackage,
     NovelDramaRequest,
     NovelShotImageResult,
+    NovelShotVideoResult,
     NovelSourceFacts,
 )
 from pixelle_video.models.progress import ProgressEvent
@@ -174,6 +175,105 @@ class NovelDramaPipeline(BasePipeline):
 
         self._report_progress(progress_callback, "novel_drama_shot_image_complete", 1.0)
         logger.info(f"Generated novel drama shot image: {image_path}")
+        return result
+
+    async def generate_shot_video(
+        self,
+        package_data: dict,
+        shot_id: str,
+        progress_callback: Optional[Callable[[ProgressEvent], None]] = None,
+        **kwargs
+    ) -> NovelShotVideoResult:
+        """
+        Generate a short LTX video clip for one reviewed shot.
+
+        This is the primary novel-drama media path because the project target is
+        a short drama video, and the current self-hosted ComfyUI server already
+        has an LTX 2.3 video workflow.
+        """
+
+        self._report_progress(progress_callback, "novel_drama_shot_video_preparing", 0.05)
+
+        package = NovelDramaPackage.model_validate(package_data)
+        shot = next((item for item in package.shots if item.shot_id == shot_id), None)
+        if shot is None:
+            raise ValueError(f"Shot not found in package: {shot_id}")
+
+        workflow = kwargs.get("workflow") or getattr(config_manager.config.comfyui.video, "default_workflow", None)
+        if not workflow:
+            raise ValueError("No video workflow configured. Please set comfyui.video.default_workflow in config.yaml.")
+
+        width = int(kwargs.get("width", 960))
+        height = int(kwargs.get("height", 544))
+        fps = int(kwargs.get("fps", 24))
+        duration_seconds = float(kwargs.get("duration_seconds") or min(max(shot.duration_seconds, 3), 8))
+        frame_count = self._duration_to_ltx_frame_count(duration_seconds, fps)
+        prompt = kwargs.get("prompt_override") or shot.visual_prompt_en
+        prompt = self._build_video_prompt(prompt)
+
+        assets_dir = self._get_episode_assets_dir(package)
+        adapted_workflow_path = self._prepare_ltx_t2v_workflow(
+            workflow=workflow,
+            package=package,
+            shot_id=shot_id,
+            prompt=prompt,
+            width=width,
+            height=height,
+            fps=fps,
+            frame_count=frame_count,
+            assets_dir=assets_dir,
+        )
+
+        logger.info(
+            f"Generating novel drama shot video: shot_id={shot_id}, size={width}x{height}, "
+            f"frames={frame_count}, fps={fps}"
+        )
+        self._report_progress(progress_callback, "novel_drama_shot_video_generating", 0.25)
+
+        kit = await self.core._get_or_create_comfykit()
+        video_result = await kit.execute(
+            str(adapted_workflow_path),
+            {
+                "prompt": prompt,
+                "width": width,
+                "height": height,
+                "duration": duration_seconds,
+            },
+        )
+
+        if video_result.status != "completed":
+            detail = video_result.msg or "Unknown ComfyUI execution error"
+            raise Exception(f"ComfyUI workflow failed: {detail}")
+
+        video_url = self._extract_video_url(video_result)
+        if not video_url:
+            output_keys = list(video_result.outputs.keys()) if video_result.outputs else []
+            raise Exception(
+                "The workflow completed but did not return a video URL. "
+                f"Prompt ID: {video_result.prompt_id}; output nodes: {output_keys}"
+            )
+
+        self._report_progress(progress_callback, "novel_drama_shot_video_saving", 0.85)
+        video_path = await self._save_media_asset(
+            media_url=video_url,
+            assets_dir=assets_dir,
+            filename=f"{self._safe_filename(shot_id)}.mp4",
+        )
+
+        result = NovelShotVideoResult(
+            shot_id=shot_id,
+            video_path=video_path,
+            prompt=prompt,
+            workflow=workflow,
+            width=width,
+            height=height,
+            duration_seconds=duration_seconds,
+            frame_count=frame_count,
+            fps=fps,
+        )
+
+        self._report_progress(progress_callback, "novel_drama_shot_video_complete", 1.0)
+        logger.info(f"Generated novel drama shot video: {video_path}")
         return result
 
     async def _extract_grounded_source_facts(self, request: NovelDramaRequest, kwargs: dict) -> NovelSourceFacts:
@@ -407,28 +507,12 @@ class NovelDramaPipeline(BasePipeline):
     async def _save_shot_image_asset(self, media_url: str, package: NovelDramaPackage, shot_id: str) -> str:
         """Persist a ComfyUI image result into a novel-drama asset folder."""
 
-        assets_dir = Path("output") / "novel_drama_assets" / self._safe_filename(
-            f"episode_{package.episode_number}_{package.episode_title}"
-        )
-        assets_dir.mkdir(parents=True, exist_ok=True)
-
         extension = self._infer_media_extension(media_url, default=".png")
-        image_path = assets_dir / f"{self._safe_filename(shot_id)}{extension}"
-
-        parsed = urlparse(media_url)
-        if parsed.scheme in ("http", "https"):
-            timeout = httpx.Timeout(connect=10.0, read=120.0, write=60.0, pool=60.0)
-            async with httpx.AsyncClient(timeout=timeout) as client:
-                response = await client.get(media_url)
-                response.raise_for_status()
-                image_path.write_bytes(response.content)
-        else:
-            source_path = Path(media_url)
-            if not source_path.exists():
-                raise FileNotFoundError(f"Generated image path not found: {media_url}")
-            shutil.copyfile(source_path, image_path)
-
-        return str(image_path)
+        return await self._save_media_asset(
+            media_url=media_url,
+            assets_dir=self._get_episode_assets_dir(package),
+            filename=f"{self._safe_filename(shot_id)}{extension}",
+        )
 
     def _infer_media_extension(self, media_url: str, default: str = ".png") -> str:
         """Infer a safe media extension from a path or URL."""
@@ -443,3 +527,137 @@ class NovelDramaPipeline(BasePipeline):
 
         safe = "".join(ch if ch.isalnum() or ch in ("-", "_") else "_" for ch in str(value).strip())
         return safe.strip("_")[:80] or "untitled"
+
+    def _build_video_prompt(self, shot_prompt: str) -> str:
+        """Apply the configured video prompt prefix to a shot prompt."""
+
+        prompt_prefix = getattr(config_manager.config.comfyui.video, "prompt_prefix", "")
+        if prompt_prefix:
+            return f"{prompt_prefix}, {shot_prompt}"
+        return shot_prompt
+
+    def _duration_to_ltx_frame_count(self, duration_seconds: float, fps: int) -> int:
+        """Convert duration to an LTX-friendly frame count of 8n + 1."""
+
+        target_frames = max(9, int(round(duration_seconds * fps)))
+        return ((target_frames - 1 + 7) // 8) * 8 + 1
+
+    def _get_episode_assets_dir(self, package: NovelDramaPackage) -> Path:
+        """Get the runtime asset folder for a drama episode."""
+
+        assets_dir = Path("output") / "novel_drama_assets" / self._safe_filename(
+            f"episode_{package.episode_number}_{package.episode_title}"
+        )
+        assets_dir.mkdir(parents=True, exist_ok=True)
+        return assets_dir
+
+    def _prepare_ltx_t2v_workflow(
+        self,
+        workflow: str,
+        package: NovelDramaPackage,
+        shot_id: str,
+        prompt: str,
+        width: int,
+        height: int,
+        fps: int,
+        frame_count: int,
+        assets_dir: Path,
+    ) -> Path:
+        """Create a task-local LTX T2V workflow with concrete shot parameters."""
+
+        workflow_path = Path("workflows") / workflow
+        if not workflow_path.exists():
+            workflow_path = Path(workflow)
+        if not workflow_path.exists():
+            raise FileNotFoundError(f"Video workflow file not found: {workflow}")
+
+        workflow_config = json.loads(workflow_path.read_text(encoding="utf-8"))
+        filename_prefix = self._safe_filename(f"novel_t2v_ep{package.episode_number}_{shot_id}")
+
+        for node_id, node in workflow_config.items():
+            if not isinstance(node, dict):
+                continue
+
+            class_type = node.get("class_type")
+            inputs = node.setdefault("inputs", {})
+            title = node.get("_meta", {}).get("title", "")
+
+            if class_type == "CLIPTextEncode" and "$prompt" in title:
+                inputs["text"] = prompt
+            if class_type == "EmptyLTXVLatentVideo":
+                inputs["width"] = width
+                inputs["height"] = height
+            if class_type == "PrimitiveInt" and title == "number of frames":
+                inputs["value"] = frame_count
+            if class_type == "PrimitiveFloat" and title == "fps":
+                inputs["value"] = fps
+            if title == "bypass_i2v" and "value" in inputs:
+                inputs["value"] = True
+            if class_type == "LTXVConcatAVLatent" and inputs.get("video_latent") == ["3159", 0]:
+                inputs["video_latent"] = ["3059", 0]
+            if class_type == "SaveVideo" and "filename_prefix" in inputs:
+                inputs["filename_prefix"] = f"{filename_prefix}_{node_id}"
+
+        workflows_dir = assets_dir / "workflows"
+        workflows_dir.mkdir(parents=True, exist_ok=True)
+        adapted_workflow_path = workflows_dir / f"{self._safe_filename(shot_id)}_t2v_{workflow_path.name}"
+        adapted_workflow_path.write_text(json.dumps(workflow_config, ensure_ascii=False, indent=2), encoding="utf-8")
+        return adapted_workflow_path
+
+    def _extract_video_url(self, video_result) -> Optional[str]:
+        """Extract a video URL from ComfyKit's result variants."""
+
+        if hasattr(video_result, "videos") and video_result.videos:
+            return video_result.videos[0]
+
+        outputs = getattr(video_result, "outputs", None)
+        if not outputs:
+            return None
+
+        for node_output in outputs.values():
+            if not isinstance(node_output, dict):
+                continue
+            for media_key in ("videos", "gifs"):
+                media_items = node_output.get(media_key)
+                if not media_items:
+                    continue
+                for media_item in media_items:
+                    if isinstance(media_item, str):
+                        return media_item
+                    if not isinstance(media_item, dict):
+                        continue
+                    filename = media_item.get("filename", "")
+                    if not filename.lower().endswith((".mp4", ".mov", ".avi", ".webm", ".gif")):
+                        continue
+                    comfyui_url = config_manager.get_comfyui_config().get("comfyui_url", "").rstrip("/")
+                    query = {
+                        "filename": filename,
+                        "type": media_item.get("type", "output"),
+                    }
+                    subfolder = media_item.get("subfolder")
+                    if subfolder:
+                        query["subfolder"] = subfolder
+                    return f"{comfyui_url}/view?{urlencode(query)}"
+
+        return None
+
+    async def _save_media_asset(self, media_url: str, assets_dir: Path, filename: str) -> str:
+        """Save a generated media URL or local file path under an asset folder."""
+
+        assets_dir.mkdir(parents=True, exist_ok=True)
+        output_path = assets_dir / filename
+
+        parsed = urlparse(media_url)
+        if parsed.scheme in ("http", "https"):
+            timeout = httpx.Timeout(connect=10.0, read=300.0, write=60.0, pool=60.0)
+            async with httpx.AsyncClient(timeout=timeout) as client:
+                response = await client.get(media_url)
+                response.raise_for_status()
+                output_path.write_bytes(response.content)
+        else:
+            source_path = Path(media_url)
+            if not source_path.exists():
+                raise FileNotFoundError(f"Generated media path not found: {media_url}")
+            shutil.copyfile(source_path, output_path)
+
+        return str(output_path)

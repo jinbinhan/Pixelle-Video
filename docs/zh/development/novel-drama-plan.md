@@ -166,6 +166,8 @@ templates/1080x1920/video_drama.html
 
 2026-04-27 的真实 ComfyUI 测试结果：小说短剧单镜头入口已经能提交到 ComfyUI，但当前服务器还没有可用的本地图片模型组合。`selfhost/image_flux.json` 原先缺少 `easy int` 节点，已改成原生整数宽高；继续提交后发现服务器缺少 `flux1-dev.safetensors`、`clip_l.safetensors`、`t5xxl_fp8_e4m3fn.safetensors` 和 `ae.safetensors`。`selfhost/image_qwen.json` 也缺 Qwen Image 模型和 LoRA。`selfhost/image_nano_banana.json` 节点存在，但运行时报 `Unauthorized: Please login first to use this node.`。所以下一步如果要真的出图，需要先在 ComfyUI 服务器补齐 Flux/Qwen 图片模型，或配置 Gemini Image 节点授权，或提供一个已验证可运行的图片 workflow。
 
+综合判断后，当前主线改为“单镜头 LTX 2.3 文生视频”，图片生成功能保留为辅助。原因是项目目标是小说短剧成片，而当前服务器已有可用 LTX 2.3 视频模型。2026-04-27 已验证真实 LTX 单镜头 T2V 跑通：系统会为每个 shot 创建运行时 workflow，把 I2V 分支绕开，直接使用 T2V latent，写入 prompt、宽高、帧数和唯一输出前缀；测试生成了 3 秒、960x544、73 帧的视频片段，保存到 `output/novel_drama_assets/episode_1_LTX_Midnight_Test/SH1.mp4`。
+
 验收：
 
 - 单个镜头可以从 JSON 生成图片或视频片段。

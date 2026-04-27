@@ -72,6 +72,8 @@ Single-shot image generation is the first ComfyUI bridge for the novel drama flo
 
 As of 2026-04-27, the single-shot image path reaches ComfyUI, but the current server has no verified runnable local image workflow. `selfhost/image_flux.json` no longer uses the missing `easy int` nodes, but the server is missing Flux model files (`flux1-dev.safetensors`, `clip_l.safetensors`, `t5xxl_fp8_e4m3fn.safetensors`, `ae.safetensors`). `selfhost/image_qwen.json` is also missing Qwen Image assets. `selfhost/image_nano_banana.json` submits but fails with `Unauthorized: Please login first to use this node.` Do not treat this as a novel-drama UI bug; fix the ComfyUI image workflow/model setup first.
 
+The current main media path is single-shot LTX 2.3 text-to-video. Use `NovelDramaPipeline.generate_shot_video(...)` with a reviewed `NovelDramaPackage` dict and a shot ID. The pipeline writes a runtime workflow under `output/novel_drama_assets/<episode>/workflows/`, sets T2V prompt/width/height/fps/frame count/output prefix, bypasses the image branch by connecting the LTX video latent directly into `LTXVConcatAVLatent`, and saves the resulting clip under `output/novel_drama_assets/<episode>/<shot_id>.mp4`. A real 2026-04-27 test generated `output/novel_drama_assets/episode_1_LTX_Midnight_Test/SH1.mp4` successfully.
+
 Human-readable plan: `docs/zh/development/novel-drama-plan.md`.
 
 ## Current Git Setup Notes

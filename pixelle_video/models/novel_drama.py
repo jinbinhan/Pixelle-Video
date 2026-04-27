@@ -144,11 +144,27 @@ class NovelShotImageResult(BaseModel):
     status: Literal["image_generated"] = "image_generated"
 
 
+class NovelShotVideoResult(BaseModel):
+    """Generated video asset for one reviewed drama shot."""
+
+    shot_id: str
+    video_path: str
+    prompt: str
+    workflow: Optional[str] = None
+    width: int
+    height: int
+    duration_seconds: float
+    frame_count: int
+    fps: int
+    status: Literal["video_generated"] = "video_generated"
+
+
 __all__ = [
     "NovelDramaRequest",
     "NovelSourceFacts",
     "NovelDramaPackage",
     "NovelShotImageResult",
+    "NovelShotVideoResult",
     "CharacterCard",
     "DramaScene",
     "DramaShot",
