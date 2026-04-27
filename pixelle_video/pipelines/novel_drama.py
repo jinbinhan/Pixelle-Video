@@ -11,11 +11,21 @@ This pipeline deliberately stops before ComfyUI, TTS, or video composition.
 
 import json
 import re
+import shutil
 from typing import Optional, Callable
+from pathlib import Path
+from urllib.parse import urlparse
 
+import httpx
 from loguru import logger
 
-from pixelle_video.models.novel_drama import NovelDramaPackage, NovelDramaRequest, NovelSourceFacts
+from pixelle_video.config import config_manager
+from pixelle_video.models.novel_drama import (
+    NovelDramaPackage,
+    NovelDramaRequest,
+    NovelShotImageResult,
+    NovelSourceFacts,
+)
 from pixelle_video.models.progress import ProgressEvent
 from pixelle_video.pipelines.base import BasePipeline
 from pixelle_video.prompts.novel_drama import build_novel_drama_prompt, build_novel_source_facts_prompt
@@ -104,6 +114,67 @@ class NovelDramaPipeline(BasePipeline):
         logger.info(f"Generated novel drama package: {package.episode_title}")
 
         return package
+
+    async def generate_shot_image(
+        self,
+        package_data: dict,
+        shot_id: str,
+        progress_callback: Optional[Callable[[ProgressEvent], None]] = None,
+        **kwargs
+    ) -> NovelShotImageResult:
+        """
+        Generate a still image for one reviewed shot.
+
+        This is the first ComfyUI bridge for the novel-drama flow. It deliberately
+        handles one shot at a time so failures are easy to inspect and retry.
+        """
+
+        self._report_progress(progress_callback, "novel_drama_shot_image_preparing", 0.05)
+
+        package = NovelDramaPackage.model_validate(package_data)
+        shot = next((item for item in package.shots if item.shot_id == shot_id), None)
+        if shot is None:
+            raise ValueError(f"Shot not found in package: {shot_id}")
+
+        width = int(kwargs.get("width", 768))
+        height = int(kwargs.get("height", 1024))
+        workflow = kwargs.get("workflow")
+        negative_prompt = kwargs.get("negative_prompt")
+        steps = kwargs.get("steps")
+        seed = kwargs.get("seed")
+
+        prompt = kwargs.get("prompt_override") or shot.visual_prompt_en
+        prompt = self._build_image_prompt(prompt)
+
+        logger.info(f"Generating novel drama shot image: shot_id={shot_id}, size={width}x{height}")
+        self._report_progress(progress_callback, "novel_drama_shot_image_generating", 0.25)
+
+        media_result = await self.core.media(
+            prompt=prompt,
+            workflow=workflow,
+            media_type="image",
+            width=width,
+            height=height,
+            negative_prompt=negative_prompt,
+            steps=steps,
+            seed=seed,
+        )
+
+        self._report_progress(progress_callback, "novel_drama_shot_image_saving", 0.85)
+        image_path = await self._save_shot_image_asset(media_result.url, package, shot_id)
+
+        result = NovelShotImageResult(
+            shot_id=shot_id,
+            image_path=image_path,
+            prompt=prompt,
+            workflow=workflow,
+            width=width,
+            height=height,
+        )
+
+        self._report_progress(progress_callback, "novel_drama_shot_image_complete", 1.0)
+        logger.info(f"Generated novel drama shot image: {image_path}")
+        return result
 
     async def _extract_grounded_source_facts(self, request: NovelDramaRequest, kwargs: dict) -> NovelSourceFacts:
         """Extract source facts, falling back to local rules when the LLM drifts."""
@@ -324,3 +395,51 @@ class NovelDramaPipeline(BasePipeline):
         """Normalize text for simple source-marker checks."""
 
         return "".join(str(text).lower().split())
+
+    def _build_image_prompt(self, shot_prompt: str) -> str:
+        """Apply the configured image prompt prefix to a shot prompt."""
+
+        prompt_prefix = getattr(config_manager.config.comfyui.image, "prompt_prefix", "")
+        if prompt_prefix:
+            return f"{prompt_prefix}, {shot_prompt}"
+        return shot_prompt
+
+    async def _save_shot_image_asset(self, media_url: str, package: NovelDramaPackage, shot_id: str) -> str:
+        """Persist a ComfyUI image result into a novel-drama asset folder."""
+
+        assets_dir = Path("output") / "novel_drama_assets" / self._safe_filename(
+            f"episode_{package.episode_number}_{package.episode_title}"
+        )
+        assets_dir.mkdir(parents=True, exist_ok=True)
+
+        extension = self._infer_media_extension(media_url, default=".png")
+        image_path = assets_dir / f"{self._safe_filename(shot_id)}{extension}"
+
+        parsed = urlparse(media_url)
+        if parsed.scheme in ("http", "https"):
+            timeout = httpx.Timeout(connect=10.0, read=120.0, write=60.0, pool=60.0)
+            async with httpx.AsyncClient(timeout=timeout) as client:
+                response = await client.get(media_url)
+                response.raise_for_status()
+                image_path.write_bytes(response.content)
+        else:
+            source_path = Path(media_url)
+            if not source_path.exists():
+                raise FileNotFoundError(f"Generated image path not found: {media_url}")
+            shutil.copyfile(source_path, image_path)
+
+        return str(image_path)
+
+    def _infer_media_extension(self, media_url: str, default: str = ".png") -> str:
+        """Infer a safe media extension from a path or URL."""
+
+        suffix = Path(urlparse(media_url).path).suffix.lower()
+        if suffix in {".png", ".jpg", ".jpeg", ".webp"}:
+            return suffix
+        return default
+
+    def _safe_filename(self, value: str) -> str:
+        """Convert arbitrary text into a portable filename fragment."""
+
+        safe = "".join(ch if ch.isalnum() or ch in ("-", "_") else "_" for ch in str(value).strip())
+        return safe.strip("_")[:80] or "untitled"

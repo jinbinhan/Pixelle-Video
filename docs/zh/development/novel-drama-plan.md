@@ -162,6 +162,10 @@ templates/1080x1920/video_drama.html
 - 保存每个镜头的输入 prompt、workflow、输出文件和错误信息。
 - 优先支持图片生成，再支持图生视频。
 
+当前实现从“单镜头图片”开始：在小说短剧页面中选择审核后的某个 shot，使用该 shot 的 `visual_prompt_en` 调用配置默认的图片 workflow，也可以临时选择其他 `image_*.json` workflow。生成结果保存到 `output/novel_drama_assets/`，页面展示图片和实际使用的 prompt。视频生成仍然保持未接入，等单张镜头图稳定后再继续。
+
+2026-04-27 的真实 ComfyUI 测试结果：小说短剧单镜头入口已经能提交到 ComfyUI，但当前服务器还没有可用的本地图片模型组合。`selfhost/image_flux.json` 原先缺少 `easy int` 节点，已改成原生整数宽高；继续提交后发现服务器缺少 `flux1-dev.safetensors`、`clip_l.safetensors`、`t5xxl_fp8_e4m3fn.safetensors` 和 `ae.safetensors`。`selfhost/image_qwen.json` 也缺 Qwen Image 模型和 LoRA。`selfhost/image_nano_banana.json` 节点存在，但运行时报 `Unauthorized: Please login first to use this node.`。所以下一步如果要真的出图，需要先在 ComfyUI 服务器补齐 Flux/Qwen 图片模型，或配置 Gemini Image 节点授权，或提供一个已验证可运行的图片 workflow。
+
 验收：
 
 - 单个镜头可以从 JSON 生成图片或视频片段。

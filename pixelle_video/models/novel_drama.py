@@ -132,10 +132,23 @@ class NovelDramaPackage(BaseModel):
         return self
 
 
+class NovelShotImageResult(BaseModel):
+    """Generated image asset for one reviewed drama shot."""
+
+    shot_id: str
+    image_path: str
+    prompt: str
+    workflow: Optional[str] = None
+    width: int
+    height: int
+    status: Literal["image_generated"] = "image_generated"
+
+
 __all__ = [
     "NovelDramaRequest",
     "NovelSourceFacts",
     "NovelDramaPackage",
+    "NovelShotImageResult",
     "CharacterCard",
     "DramaScene",
     "DramaShot",

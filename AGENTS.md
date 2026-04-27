@@ -68,6 +68,10 @@ The first implementation uses source anchors before adaptation. Local Gemma/llam
 
 The novel drama Web UI includes a JSON review/edit area. Edited packages must validate against `NovelDramaPackage` before they replace the generated package. Reviewed drafts are saved as runtime artifacts under `output/novel_drama_drafts/`, which is ignored by Git.
 
+Single-shot image generation is the first ComfyUI bridge for the novel drama flow. Use `NovelDramaPipeline.generate_shot_image(...)` with a reviewed `NovelDramaPackage` dict and a shot ID. It calls the configured image workflow through `MediaService`, saves images under `output/novel_drama_assets/`, and intentionally handles one shot at a time before any whole-episode automation.
+
+As of 2026-04-27, the single-shot image path reaches ComfyUI, but the current server has no verified runnable local image workflow. `selfhost/image_flux.json` no longer uses the missing `easy int` nodes, but the server is missing Flux model files (`flux1-dev.safetensors`, `clip_l.safetensors`, `t5xxl_fp8_e4m3fn.safetensors`, `ae.safetensors`). `selfhost/image_qwen.json` is also missing Qwen Image assets. `selfhost/image_nano_banana.json` submits but fails with `Unauthorized: Please login first to use this node.` Do not treat this as a novel-drama UI bug; fix the ComfyUI image workflow/model setup first.
+
 Human-readable plan: `docs/zh/development/novel-drama-plan.md`.
 
 ## Current Git Setup Notes
